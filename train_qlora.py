@@ -1,11 +1,10 @@
 import os
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from transformers.trainer_utils import get_last_checkpoint
 from peft import LoraConfig, prepare_model_for_kbit_training
 from trl import SFTTrainer
 from datasets import load_dataset
-import bitsandbytes as bnb
 
 def execute_qlora_training(dataset_path, output_dir_name):
     model_id = "Qwen/Qwen2.5-0.5B"
@@ -16,7 +15,7 @@ def execute_qlora_training(dataset_path, output_dir_name):
     if tokenizer.pad_token is None: special_tokens_dict['pad_token'] = '<|pad|>'
     tokenizer.add_special_tokens(special_tokens_dict)
         
-    bnb_config = bnb.BitsAndBytesConfig(
+    bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
         bnb_4bit_quant_type="nf4",
