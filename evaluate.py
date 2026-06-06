@@ -46,9 +46,11 @@ def calculate_bwt_perplexity(base_model_id, adapter_path=None, device="cuda"):
             
     return math.exp(total_nll / total_tokens)
 
-def execute_evaluation_matrix():
+def execute_evaluation_matrix(models_to_eval=None):
     """
     Runs the zero-shot benchmarks (via vLLM) and absolute BWT differential analysis.
+    If models_to_eval is None, evaluates all 6 variants.
+    Format: {"DisplayName": ("./final_models/AdapterDir", "semantic"|"logical"), ...}
     """
     base_model_id = "Qwen/Qwen2.5-0.5B"
     
@@ -56,14 +58,19 @@ def execute_evaluation_matrix():
     baseline_ppl = calculate_bwt_perplexity(base_model_id)
     print(f"Zero-Shot Baseline Perplexity: {baseline_ppl:.4f}")
     
-    models_to_eval = {
-        "Semantic_Control": ("./final_models/Sem_Control", "semantic"),
-        "Semantic_Input_Masked": ("./final_models/Sem_InputMasked", "semantic"),
-        "Semantic_Output_Masked": ("./final_models/Sem_OutputMasked", "semantic"),
-        "Logical_Control": ("./final_models/Log_Control", "logical"),
-        "Logical_Input_Masked": ("./final_models/Log_InputMasked", "logical"),
-        "Logical_Output_Masked": ("./final_models/Log_OutputMasked", "logical"),
-    }
+    if models_to_eval is None:
+        models_to_eval = {
+            "Semantic_Control": ("./final_models/Sem_Control", "semantic"),
+            "Semantic_Input_Masked": ("./final_models/Sem_InputMasked", "semantic"),
+            "Semantic_Output_Masked": ("./final_models/Sem_OutputMasked", "semantic"),
+            "Logical_Control": ("./final_models/Log_Control", "logical"),
+            "Logical_Input_Masked": ("./final_models/Log_InputMasked", "logical"),
+            "Logical_Output_Masked": ("./final_models/Log_OutputMasked", "logical"),
+        }
+    
+    if not models_to_eval:
+        print("No models matched the requested track/strategy. Nothing to evaluate.")
+        return
     
     master_results = {"Baseline_PPL": baseline_ppl}
     
