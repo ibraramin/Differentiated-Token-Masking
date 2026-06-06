@@ -87,7 +87,7 @@ def execute_evaluation_matrix(models_to_eval=None):
             
         print(f"Booting vLLM engine for tasks: {tasks}...")
         task_results = lm_eval.simple_evaluate(
-            model="vllm",
+            model="hf",
             model_args=vllm_args,
             tasks=tasks,
             num_fewshot=0,
