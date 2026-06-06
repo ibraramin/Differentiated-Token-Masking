@@ -1,7 +1,9 @@
 import os
+import shutil
 import torch
 import math
 import json
+from safetensors.torch import load_file, save_file
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 import lm_eval
@@ -47,6 +49,28 @@ def calculate_bwt_perplexity(base_model_id, adapter_path=None, device="cuda"):
             
     return math.exp(total_nll / total_tokens)
 
+
+def strip_extra_embeddings(adapter_path, output_path):
+    if os.path.exists(output_path) and os.path.isdir(output_path):
+        model_files = [f for f in os.listdir(output_path) if f.endswith('.safetensors')]
+        if model_files:
+            return output_path
+
+    os.makedirs(output_path, exist_ok=True)
+
+    state_dict = load_file(f"{adapter_path}/adapter_model.safetensors")
+    cleaned = {k: v for k, v in state_dict.items()
+               if "embed_tokens" not in k and "lm_head" not in k}
+    if not cleaned:
+        shutil.rmtree(output_path)
+        raise RuntimeError(f"No LoRA weights remain after stripping embeddings from {adapter_path}")
+
+    save_file(cleaned, f"{output_path}/adapter_model.safetensors")
+    shutil.copy(f"{adapter_path}/adapter_config.json", output_path)
+
+    return output_path
+
+
 def execute_evaluation_matrix(models_to_eval=None):
     """
     Runs the zero-shot benchmarks (via vLLM) and absolute BWT differential analysis.
@@ -75,14 +99,18 @@ def execute_evaluation_matrix(models_to_eval=None):
     
     master_results = {"Baseline_PPL": baseline_ppl}
     
+    cleaned_dir = "./cleaned_adapters"
+    os.makedirs(cleaned_dir, exist_ok=True)
+    
     for model_name, (adapter_path, track) in models_to_eval.items():
         print(f"\n{'='*50}\nEvaluating: {model_name}\n{'='*50}")
         
         tasks = ["arc_challenge", "hellaswag", "mmlu"] if track == "semantic" else ["gsm8k", "minerva_math"]
         
+        cleaned_path = strip_extra_embeddings(adapter_path, f"{cleaned_dir}/{model_name}")
         hf_args = f"pretrained={base_model_id},dtype=bfloat16"
-        if adapter_path != base_model_id:
-            hf_args += f",peft={adapter_path}"
+        if cleaned_path != base_model_id:
+            hf_args += f",peft={cleaned_path}"
             
         print(f"Evaluating via HF engine for tasks: {tasks}...")
         task_results = lm_eval.simple_evaluate(
