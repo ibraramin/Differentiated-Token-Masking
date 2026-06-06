@@ -1,0 +1,856 @@
+Optimizing Low-Resource Language
+Models
+via
+Differentiated
+Token-Masking: A Framework for
+Self-Curated Difficulty Alignment
+Introduction: The Low-Resource Curation Paradigm
+The trajectory of large language model (LLM) research has increasingly prioritized data
+efficiency and targeted optimization over raw parameter scaling.1 As models approach the
+asymptotic limits of available human-generated text, the focus has shifted toward self-curated
+dataset optimization, wherein models actively filter, refine, and select their own training data to
+maximize supervised fine-tuning (SFT) efficacy.2 This paradigm is particularly critical for
+lightweight architectures, where parameter capacity acts as a strict bottleneck. In such
+constrained environments, exposing a model to overly complex, noisy, or dense data does not
+simply result in inefficient learning; it actively degrades alignment and induces catastrophic
+forgetting by exceeding the model's representational capacity.4 Consequently, the ability to
+accurately assess and select training data based on its intrinsic cognitive difficulty has emerged
+as a paramount challenge in contemporary machine learning.2
+This report details an exhaustive theoretical, mathematical, and experimental framework for
+investigating self-curated dataset optimization through the precise lens of token-masking
+mechanics. The focal point of this investigation utilizes the Qwen-2.5-0.5B model, an advanced
+lightweight architecture specifically chosen for its low hardware requirements, rapid iteration
+capabilities, and robust baseline performance across diverse cognitive tasks.5 By establishing
+two independent data tracks—one dedicated to semantic understanding and linguistic nuance,
+and the other rigorously focused on logical and mathematical reasoning—the research isolates
+the impact of specialized data curation on distinct cognitive modalities.7
+The core theoretical novelty of this framework lies in the comparative analysis of two distinct
+token-masking strategies used to assign a "difficulty score" to candidate training samples
+dynamically. Strategy A, conceptualized as Input Masking, obscures key informational tokens
+within the prompt context to evaluate the model's generation stability and its reliance on
+specific instructional cues. Strategy B, defined as Output Masking, obscures target tokens
+within the historical answer sequence to evaluate the model's predictive certainty and internal
+logical consistency. By defining a mathematically rigorous yet computationally lightweight
+framework for these difficulty scores, the research enables the selective curation of
+fine-tuning subsets that perfectly match the model's optimal learning threshold.4
+This comprehensive proposal encompasses a deep literature review to contextualize the
+prevailing research gap, formal mathematical definitions for the proposed difficulty metrics
+grounded in information theory, a highly detailed experimental protocol tailored for single-GPU
+consumer environments, a robust multi-dimensional evaluation matrix, and a strategic
+
+framework designed to ensure the academic validity of the findings irrespective of the
+empirical outcomes.
+
+Comprehensive
+Contextualization
+
+Literature
+
+Review
+
+and
+
+The foundation of this research rests upon three intersecting domains of machine learning:
+self-distillation and automated data selection, curriculum learning guided by perplexity and
+difficulty metrics, and token-level masking mechanisms. Analyzing the current state of these
+fields reveals critical insights into how lightweight models process information, highlighting the
+specific research gap that the proposed input versus output masking paradigm addresses.
+
+Dataset Pruning and Curriculum Learning via Difficulty Scoring
+The long-standing heuristic that expanding dataset size universally improves model capability
+has been systematically dismantled in the context of supervised fine-tuning. Recent empirical
+phenomena and theoretical analyses demonstrate that effective data selection must adapt
+dynamically to both the available data scale and the specific architectural capability of the
+target model.2 A pivotal finding in recent literature is that preference data varies significantly in
+cognitive difficulty, and exposing a model to overly difficult examples actively hinders alignment
+by exceeding the model's parameter capacity.4 This underscores a critical relationship between
+data selection and model scale: a 0.5-billion parameter model simply cannot process the same
+complexity of training data as a 70-billion parameter model without suffering representational
+collapse.
+To operationalize the concept of "difficulty," researchers have historically relied on
+perplexity-based filtering methodologies. A large perplexity score typically indicates that a data
+sample is difficult, rare, or anomalous relative to the model's pre-trained distribution.8 Early
+implementations utilized fixed n-gram language models to calculate perplexity across
+candidate datasets, typically selecting examples with intermediate values to form optimal
+training curriculums.2 As LLMs evolved, these metrics became self-referential. Advancements
+in this space introduced the Instruction-Following Difficulty (IFD) metric, a self-guided method
+that quantifies the challenge of responding to a specific instruction without relying on external
+evaluator models or human annotation.9
+The IFD score is mathematically defined as the ratio of the perplexity of the response
+conditioned on the instruction to the unconditional perplexity of the response.11 A lower IFD
+score indicates that the instruction significantly aided the model in generating the response,
+whereas a higher score suggests a semantic disconnect or high inherent difficulty.11 Further
+enhancements to this concept, such as the Token-Selective Hierarchical Data Selection
+(T-SHIRT) framework, identified critical limitations in sample-level evaluation.12 T-SHIRT
+introduced the Selective-IFD (S-IFD) score, which isolates token-level informativeness, thereby
+preventing the erroneous selection of samples based on superficial lexical features rather than
+true semantic or structural quality.12
+Furthermore, research into Adaptive Difficulty in reinforcement learning has demonstrated that
+
+prioritizing questions of moderate difficulty yields the most informative learning signals,
+drastically reducing fine-tuning time while maintaining state-of-the-art performance
+benchmarks.1 This principle of targeting the "median difficulty bracket" forms the theoretical
+justification for the data filtering mechanisms proposed in this experimental framework.
+
+Token-Masking Mechanisms and Forgetting Mitigation
+Token-masking has traditionally been associated with pre-training objectives, most notably
+Masked Language Modeling (MLM) utilized in BERT architectures, as well as visual input
+masking tasks like Masked Region Modeling (MRM).15 However, recent literature has
+repurposed masking as a highly effective tool for data curation, dataset pruning, and the active
+mitigation of catastrophic forgetting during the fine-tuning phase.
+The introduction of Selective Token Masking (STM) represents a significant advancement in this
+specific domain. STM operates on the principle that fine-tuning an LLM on high-perplexity
+tokens correlates strongly with the degradation of a model's general, out-of-domain
+capabilities.17 By actively filtering out or masking these high-perplexity tokens during the
+supervised fine-tuning stage, STM blocks backpropagation from these unstable elements,
+thereby enabling what researchers term "low-perplexity training".18 Empirical evidence robustly
+demonstrates that STM not only improves target task performance but virtually eliminates the
+backward transfer of catastrophic forgetting, achieving capabilities comparable to models
+trained on highly curated, computationally expensive self-generated data.20
+Moreover, alternative masking mechanisms have been explored to enhance pure reasoning
+capabilities. For instance, "retrieved token masking" prevents unintended learning dynamics by
+excluding specific contextual elements from the reinforcement learning loss computation,
+yielding substantial improvements in complex question-answering benchmarks.21 Other
+innovative approaches, such as DiffuMask, utilize diffusion language models to predict token
+retention masks entirely in parallel, enabling efficient and scalable prompt compression by
+isolating hierarchical pruning behaviors.22
+
+The Research Gap: Differentiated Masking for Diagnostic Curation
+While the existing literature heavily utilizes perplexity and token masking, it predominantly
+applies these concepts in a uniform, reactive, or protective manner. Methods like STM mask
+high-perplexity tokens in the target sequence specifically to protect the model's weights
+during backpropagation.19 Conversely, difficulty metrics like IFD compare full prompt
+conditioning against zero prompt conditioning to generate a passive difficulty score.11
+The specific, highly novel research gap this thesis fills is the active, differentiated use of
+selective token masking (Input vs. Output) as an upfront diagnostic tool to generate nuanced
+difficulty scores for data curation, rather than deploying it merely as a protective training
+mechanism.
+Currently, no established framework systematically compares how input masking (perturbing
+the prompt to test generation stability) versus output masking (perturbing the target to test
+prediction certainty) differs in identifying the optimal curriculum for a lightweight model.
+Strategy A hypothesizes that semantic understanding is highly sensitive to input context; thus,
+
+input masking will effectively isolate samples that require robust reasoning over fragile
+contextual cues. Strategy B hypothesizes that logical and mathematical reasoning relies on
+strict sequential certainty; thus, output masking will effectively isolate samples where the
+model's internal step-by-step derivation is unstable. By bridging token-masking mechanics
+with difficulty-based dataset pruning, this research introduces a highly distinct,
+computationally efficient paradigm for self-curated SFT alignment.
+
+Mathematical Framework and Formal Definitions
+To implement this comparative curation strategy with academic rigor, it is necessary to
+construct a formal mathematical framework that translates the conceptual strategies of Input
+Masking and Output Masking into quantifiable "difficulty scores." These scores must be
+mathematically sound, grounded in information theory, yet computationally inexpensive to
+calculate during a single forward pass of the Qwen-2.5-0.5B architecture.
+
+1. Formalization of Baseline Probability Metrics
+Let
+
+represent the trained parameters of the baseline language model. For a given dataset
+
+sample consisting of an input instruction sequence
+corresponding target response sequence
+
+and a
+, the standard objective of
+
+causal language modeling is to map the conditional probability
+.
+The auto-regressive generation probability of the response given the input is defined by the
+standard chain rule of probability:
+
+The standard cross-entropy loss (or negative log-likelihood) for the target sequence, which
+forms the basis of traditional perplexity metrics, is expressed as:
+
+While
+provides a baseline measure of how "surprised" the model is by the target
+sequence, it does not isolate the specific dependencies the model has on the input context
+versus its own internal sequential logic. To decouple these dependencies, the masking
+strategies must be mathematically formalized.
+
+2. Strategy A: Input Masking Mechanics (
+
+)
+
+Strategy A seeks to evaluate the model's generation stability by masking key informational
+tokens in the prompt . The governing hypothesis is that if a sample is "easy" for the model, it
+relies heavily on a few key input tokens to trigger a strong internal pathway. If those specific
+tokens are masked, the target probability should collapse significantly. If the sample is
+inherently "difficult," the model's understanding is already fragmented, and masking input
+tokens will result in a lower relative variance in target probability.
+Let
+
+represent the masked input sequence, where a specific subset of highly
+
+informative tokens in
+(e.g., specific nouns, definitive mathematical operators) are replaced
+by a generic <|mask|> token or functionally dropped from the attention mechanism.
+The conditional probability of the target sequence under input masking conditions is defined
+as:
+
+The Input Masking Difficulty Score, denoted as
+, is defined as the log-probability
+gap between the unmasked and masked conditions. To ensure computational efficiency
+(requiring only two forward passes without backpropagation), we utilize the average
+token-level log-probability difference, conceptually mirroring the Kullback-Leibler (KL)
+divergence between the two conditional states:
+
+Mathematical Interpretation and Mechanistic Relevance: A high
+
+indicates high
+
+generation instability; the model's ability to accurately predict the target
+
+is highly dependent
+
+on the specific masked tokens present in
+
+. Therefore, the instruction provides critical
+
+conditioning, and the model recognizes this dependence. A low
+indicates that the model either already predicts
+or generic output), or the input
+
+purely from
+
+(approaching zero)
+(suggesting memorization
+
+was fundamentally incomprehensible to the model
+
+regardless of the mask, signifying extreme difficulty that exceeds the model's capacity.4
+
+3. Strategy B: Output Masking Mechanics (
+
+)
+
+Strategy B evaluates prediction certainty by masking target tokens or answer sequences. This
+strategy is particularly relevant for the logical/mathematical data track, where each step in a
+Chain-of-Thought (CoT) sequence is rigorously dependent on the preceding step.
+Let
+
+represent a partially masked historical target sequence, where specific tokens
+
+in the target
+
+are hidden during the evaluation of subsequent tokens. In a standard
+
+auto-regressive forward pass, the model attends to all
+Masking, we force the model to predict
+(where
+
+to predict
+
+. Under Output
+
+while lacking access to key previous tokens
+
+).
+
+Let
+denote this selectively masked historical target context. The probability of predicting
+the full unmasked sequence under output masking conditions is evaluated as:
+
+The Output Masking Difficulty Score, denoted as
+, is calculated as the variance or
+degradation in prediction certainty when historical target context is compromised:
+
+Mathematical Interpretation and Mechanistic Relevance:
+A high
+implies that the model possesses high sequential dependency; removing
+historical target tokens effectively breaks the logical chain, causing localized uncertainty to
+spike. This indicates a sample requiring rigorous step-by-step logic (ideal for mathematical
+reasoning tasks). A low
+implies the target sequence is highly redundant or semantically
+fluid, where missing previous words does not prevent the prediction of future words (ideal for
+general conversational chat, but poor for strict logic).
+
+4. Difficulty Assignment and Optimal Subset Selection
+
+To utilize
+and
+effectively for dataset curation, we must map these raw divergence
+scores into a normalized "Difficulty Bracket" that dictates inclusion in the final fine-tuning set.
+For a given raw dataset
+
+, we compute the requisite scores for all samples
+
+. We then normalize the scores across the dataset using standard z-score
+normalization to account for sequence length variations and inherent baseline model biases:
+
+Following the prevailing principle that overly difficult examples exceed model capacity and
+overly easy examples provide negligible gradient signal 1, the optimal SFT subset
+is
+constructed by selecting samples that fall strictly within the median difficulty bracket.
+Specifically, we apply a threshold parameter
+falls within the interquartile range (IQR):
+
+to filter samples whose normalized difficulty
+
+This mathematical formulation is highly computationally cheap. It requires exactly three
+forward passes per sample during the curation phase: one standard unmasked pass, one with
+, and one with
+. No gradient updates, backpropagation, or external
+evaluator models are required during curation, making it highly suitable for evaluating tens of
+thousands of samples rapidly on a single consumer GPU prior to fine-tuning.
+
+Experimental and Architectural Design
+The transition from mathematical theory to empirical execution requires a meticulously defined
+experimental protocol. This section details the architectural specifics of the chosen baseline
+model, the curation of the source datasets, the procedural implementation of the masking
+
+protocols, and the highly optimized fine-tuning recipe required to execute this methodology
+under stringent hardware constraints.
+
+1. Baseline Architecture: Qwen-2.5-0.5B Specifications
+The selection of Qwen-2.5-0.5B as the baseline model is central to the thesis premise. With
+0.49 billion total parameters (and 0.36 billion non-embedding parameters), the model is small
+enough to train locally on consumer hardware while possessing an architecture sophisticated
+enough to yield measurable performance variances under masking conditions.6
+The model architecture utilizes a standard Transformer configuration with RoPE (Rotary
+Positional Embeddings), SwiGLU activation functions, and RMSNorm for deep stabilization.6 It is
+constructed with 24 hidden layers, a hidden dimension size of 896, and employs Grouped
+Query Attention (GQA) with 14 query heads and 2 key-value heads.6 Notably, it supports a full
+context length of 32,768 tokens and demonstrates proficiency in both instruction following and
+structured data processing natively.23
+Because the parameter size is highly constrained, its representational capacity acts as a
+magnifying glass for dataset quality. Suboptimal, noisy, or overly complex data will quickly
+induce catastrophic forgetting of its pre-trained linguistic priors.17 Therefore, the differences
+between the datasets curated via Strategy A and Strategy B will be empirically pronounced and
+highly visible during evaluation.
+
+2. Data Tracks and Open-Source Selection
+To test the hypothesis that input masking optimizes semantic curation while output masking
+optimizes logical curation, the experiment requires two distinct, high-quality base datasets.
+These datasets must be clean, open-source, and appropriately sized for a 0.5B model to
+prevent prolonged processing bottlenecks.
+Track Designation
+
+Cognitive
+Area
+
+Focus
+
+Track 1: Semantic
+
+General
+Understanding
+&
+Linguistic Nuance
+
+Recommended
+Base Dataset
+
+Justification
+for
+0.5B
+Parameter
+Model
+
+Alpaca-Cleaned or
+a curated subset of
+UltraChat
+
+Provides
+diverse,
+conversational, and
+structurally varied
+semantic
+instructions.
+Cleaned
+versions
+prevent the model
+from
+learning
+grammatical noise,
+allowing
+the
+difficulty score to
+
+isolate
+semantic
+complexity.25
+Track 2: Logical
+
+Mathematics,
+Reasoning
+Deduction
+
+&
+
+GSM8K
+(Grade
+School Math) or a
+subset
+of
+DeepScaleR
+
+pure
+
+GSM8K
+provides
+deterministic,
+step-by-step
+mathematical
+reasoning.7 It is
+complex enough to
+challenge a 0.5B
+model
+but
+structured enough
+that
+output
+masking
+will
+accurately disrupt
+sequential
+certainty.
+
+The initial candidate datasets will consist of approximately 20,000 samples each. During the
+curation phase, the mathematical framework will evaluate all 20,000 samples and filter them
+down to the median difficulty bracket, producing optimal 5,000-sample subsets for actual SFT.
+
+3. Token Masking Protocol Implementation
+The precise definition of what constitutes a masked token is critical to the integrity of the
+experiment. Random masking introduces unacceptable statistical noise; therefore, a
+deterministic, information-theoretic approach must be employed to guarantee reproducibility.
+Protocol A: Input Token Masking Formulation
+To mask the input , we employ a localized, entropy-based selection criteria combined with
+basic Part-of-Speech (POS) tagging. Using a lightweight external library (e.g., SpaCy), we
+identify Nouns, Verbs, and Adjectives within the prompt context. We then selectively mask
+exactly 20% of these high-information tokens by replacing them with a distinct <|mask|> token.
+For the mathematical track, numerical values and distinct operational keywords (e.g.,
+"calculate", "derive") are prioritized for masking. This directly targets the structural integrity of
+the prompt's instructions.
+Protocol B: Output Token Masking Formulation
+To mask the target output
+, we utilize an iterative block-masking protocol. Because
+autoregressive models rely heavily on immediate historical context, masking isolated tokens is
+insufficient to disrupt sequence certainty. Instead, we mask sequential blocks (e.g., contiguous
+spans of 3-5 tokens) at calculated intervals across the target sequence during the evaluation
+forward pass. This forces the model to bridge larger contextual gaps, accurately reflecting the
+
+structural stability of its internal reasoning chains.
+
+4. Fine-Tuning Recipe for Single Consumer GPU
+To guarantee the reproducibility of this methodology on a single consumer GPU (e.g., an
+NVIDIA RTX 3060 Ti with 8GB VRAM or a single A100 slice) 27, the fine-tuning framework strictly
+relies on Low-Rank Adaptation (LoRA) paired with 4-bit quantization (QLoRA).28
+The integration of 4-bit NormalFloat (NF4) quantization significantly reduces the memory
+footprint, enabling the training of the 0.5B model within a tight 4GB VRAM constraint, allowing
+the remaining VRAM to process larger batch sizes and extensive context windows efficiently.27
+The empirical parameters for the LoRA configuration are carefully calibrated to ensure that the
+parameter updates are expressive enough to learn the curated datasets without overfitting.26
+Hyperparameter
+
+Value Configuration
+
+Justification
+Qwen-2.5-0.5B
+Architecture
+
+Quantization
+
+4-bit NF4
+
+Reduces
+base
+model
+memory footprint, allowing
+for stable gradient updates
+and
+extensive
+context
+processing on consumer
+GPUs.27
+
+16
+
+A rank of 16 provides
+sufficient
+dimensional
+capacity to learn both
+semantic
+nuances and
+logical structures without
+inducing parameter bloat.28
+
+32
+
+Standard scaling factor
+applied to maintain gradient
+magnitude parity with the
+chosen rank.28
+
+q_proj, k_proj, v_proj, o_proj
+
+Targeting
+all
+primary
+attention
+projections
+maximizes the adapter's
+ability to rewire the model's
+contextual
+routing
+26
+effectively.
+
+LoRA Rank ( )
+
+LoRA Alpha (
+
+)
+
+Target Modules
+
+for
+
+Learning Rate
+
+Optimal for small-scale
+LoRA to prevent aggressive
+divergence while ensuring
+steady,
+reliable
+convergence
+across
+29
+epochs.
+
+Batch Size
+
+4
+(Effective
+accumulation)
+
+16
+
+via
+
+A micro-batch size of 4 with
+4 gradient accumulation
+steps maximizes memory
+efficiency while stabilizing
+the overall loss curve.27
+
+Epochs
+
+3 to 5
+
+Empirically sufficient for the
+lightweight
+model
+to
+internalize
+the
+5,000-sample
+curated
+datasets without devolving
+into memorization.3
+
+Scheduler
+
+Cosine Annealing
+
+Ensures
+smooth
+convergence toward the
+end of training, preventing
+late-stage overfitting.
+
+The experimental pipeline will result in the generation of four distinct model variants for
+comparative analysis:
+1.​ Model Baseline: Zero-shot Qwen-2.5-0.5B (No tuning applied).
+2.​ Model Control: Fine-tuned on a random 5,000 sample subset (No difficulty curation
+applied).
+3.​ Model Input-Masked: Fine-tuned on the 5,000 samples curated via Strategy A (
+
+).
+
+4.​ Model Output-Masked: Fine-tuned on the 5,000 samples curated via Strategy B (
+).
+
+Evaluation
+Framework
+
+Matrix
+
+and
+
+Comparative
+
+Analysis
+
+The evaluation matrix is fundamentally designed to definitively answer the core research
+question: Does input masking versus output masking yield measurably different alignment
+characteristics when applied to semantic versus logical tasks? Furthermore, the evaluation
+must meticulously quantify the extent to which each curation strategy induces or mitigates
+catastrophic forgetting of the model's pre-trained capabilities.
+
+1. Benchmarking Semantic vs. Logical Alignment
+To evaluate the fine-tuned models effectively, a diverse suite of standardized, zero-shot
+benchmarks will be employed. These benchmarks are purposefully selected to independently
+isolate semantic comprehension from strict deductive reasoning.
+Semantic and Linguistic Assessment Benchmarks:
+●​ ARC-Challenge (ARC-C): Evaluates the model's ability to answer complex, grade-school
+science questions requiring robust semantic comprehension and conceptual synthesis.31
+●​ HellaSwag (HS): Tests the model's capacity to perform commonsense natural language
+inference and sentence completion. Success here strongly indicates that the model has
+successfully retained broad linguistic priors.31
+●​ MMLU (Massive Multitask Language Understanding): Provides a comprehensive
+overview of the model's general knowledge retention and instruction-following capability
+across highly diverse subjects.31
+Logical and Mathematical Assessment Benchmarks:
+●​ GSM8K Test Set: Evaluates the model's deterministic, multi-step arithmetic reasoning.
+The accuracy of the final generated answer depends entirely on the stability of the
+intermediate logical steps.7
+●​ MATH Dataset: A significantly more rigorous assessment of mathematical
+problem-solving, requiring advanced algebraic and geometric derivation, testing the
+absolute limits of the 0.5B parameter capacity.7
+The comparative analysis will scrutinize the differential performance matrix resulting from
+these evaluations. If the central hypothesis holds true, the Input-Masked Model should
+demonstrate superior performance on ARC-C and HellaSwag, as its dataset was optimized for
+stable contextual mapping. Conversely, the Output-Masked Model should demonstrate
+superior performance on GSM8K and MATH, as its dataset was specifically optimized to
+enforce internal sequential rigor.
+
+2. Post-Tuning Robustness and Forgetting Metrics
+In addition to evaluating pure performance benchmarks, the framework must quantify the
+overall architectural stability of the models utilizing the Task Improvement (TI) and Backward
+Transfer (BWT) metrics established heavily in the Selective Token Masking literature.18
+Catastrophic forgetting remains a primary, persistent risk in supervised fine-tuning, especially
+in models with less than one billion parameters.17 If the proposed difficulty curation strategies
+successfully isolate the optimal learning threshold without exceeding capacity, the resulting
+models should exhibit a highly positive Task Improvement on their target domains while
+maintaining a near-zero or minimal negative Backward Transfer on non-target domains.20
+By calculating the baseline perplexity of the fine-tuned models on a held-out corpus of raw
+text, the evaluation will accurately determine if the selective masking strategies inadvertently
+curated data distributions that warped the model's foundational linguistic geometry. The ability
+to enhance specific domain performance while concurrently minimizing out-of-domain
+degradation provides the ultimate empirical validation for the difficulty assignment
+
+methodology.18
+
+Zero-Risk
+Analysis
+
+Academic
+
+Framing
+
+and
+
+Contingency
+
+A fundamental requirement of a rigorous academic Master's thesis is that the intrinsic value of
+the research remains absolute, irrespective of the final empirical outcomes. The
+methodological design inherently generates epistemological value. The "Zero-Risk Academic
+Framing" dictates exactly how the abstract, discussion, and conclusions must be positioned to
+ensure the research is highly publishable regardless of whether the central hypothesis is
+empirically validated, explicitly refuted, or yields null results.
+
+1. Epistemological Value Independent of Empirical Triumph
+The primary risk inherent in this thesis is that neither Strategy A (Input Masking) nor Strategy B
+(Output Masking) significantly outperforms the standard Control baseline model. In a
+traditional academic framing, this would be viewed as a failure of the hypothesis. However,
+under the zero-risk framework, a null or negative result is aggressively framed as a critical
+diagnostic discovery concerning the architectural limitations of sub-1-billion parameter models.
+If both masking strategies fail to yield superior alignment, the thesis will pivot to an in-depth
+analysis of representational fragility. The conclusion will argue that in highly compact
+architectures (such as the 0.49B parameter Qwen-2.5), the internal attention mechanisms do
+not distinctly decouple prompt context from sequential generation context. Therefore,
+perturbing the input and perturbing the output degrade the conditional probability field
+uniformly, rendering targeted token-masking an ineffective tool for difficulty-based curriculum
+learning at this specific scale. This establishes a highly valuable, publishable boundary
+condition: it proves that advanced masking-based curation techniques, which succeed robustly
+in larger 7B+ models 3, possess a strict minimum parameter threshold to be effective.
+Conversely, if one strategy severely degrades the model (e.g., Output Masking causes a
+complete collapse in GSM8K mathematical performance), this negative result provides
+profound insight into how small models learn logic. It would heavily suggest that 0.5B models
+do not learn "reasoning" as a robust, internal sequence of logical steps, but rather rely entirely
+on shallow heuristic mapping from the prompt context. The failure of the strategy, therefore,
+perfectly illuminates the mechanistic reality of the lightweight model.
+
+2. Architectural Insights and Methodological Contributions
+Regardless of the final benchmark scores, the development of the mathematical framework
+itself constitutes a primary academic contribution. The formalization of
+and
+as
+computationally cheap, forward-pass-only difficulty metrics provides a highly novel tool for the
+open-source NLP community. By demonstrating how to construct these sophisticated metrics
+using standard cross-entropy and probability outputs, the thesis contributes a reusable
+methodology for self-curation that entirely bypasses the need for massive, API-driven
+evaluator models like GPT-4, aligning with the industry push toward decentralized AI
+
+development.9
+Furthermore, the extensive documentation of the single-GPU fine-tuning recipe, including the
+exact behavioral response of the Qwen-2.5-0.5B architecture to 4-bit QLoRA adaptation under
+heavily filtered datasets, provides critical benchmarking data for researchers operating under
+severe hardware constraints. The thesis will position the comparative analysis not merely as a
+contest between two filtering algorithms, but as a comprehensive, mechanistic autopsy of how
+lightweight attention mechanisms respond to forced informational deficits during the critical
+curation phase.
+By meticulously decoupling the empirical success of the fine-tuned models from the analytical
+success of the investigation, the thesis guarantees that its architectural insights, mathematical
+definitions, and evaluations of parameter boundaries remain a permanent, valuable addition to
+the literature on low-resource language model optimization.
+
+Works cited
+1.​ [2506.05316] Improving Data Efficiency for LLM Reinforcement Fine-tuning
+
+Through Difficulty-targeted Online Data Selection and Rollout Replay - arXiv,
+accessed June 5, 2026, https://arxiv.org/abs/2506.05316
+2.​ Data Difficulty and the Generalization–Extrapolation Tradeoff in LLM Fine-Tuning arXiv, accessed June 5, 2026, https://arxiv.org/html/2605.12906v2
+3.​ The Best Instruction-Tuning Data are Those That Fit - arXiv, accessed June 5,
+2026, https://arxiv.org/html/2502.04194v3
+4.​ Principled Data Selection for Alignment: The Hidden Risks of Difficult Examples arXiv, accessed June 5, 2026, https://arxiv.org/html/2502.09650v1
+5.​ Compact Language Models with Iterative Text Refinement for Health Dialogue
+Summarization
+ACL
+Anthology,
+accessed
+June
+5,
+2026,
+https://aclanthology.org/2026.eacl-long.105.pdf
+6.​ Qwen/Qwen2.5-0.5B
+Hugging
+Face,
+accessed June 5, 2026,
+https://huggingface.co/Qwen/Qwen2.5-0.5B
+7.​ AALC: Large Language Model Efficient Reasoning via Adaptive Accuracy-Length
+Control, accessed June 5, 2026, https://arxiv.org/html/2506.20160v2
+8.​ Improving Data Efficiency via Curating LLM-Driven Rating Systems - arXiv,
+accessed June 5, 2026, https://arxiv.org/html/2410.10877v1
+9.​ CROWDSELECT: Synthetic Instruction Data Selection with Multi-LLM Wisdom ACL
+Anthology,
+accessed
+June
+5,
+2026,
+https://aclanthology.org/2026.findings-eacl.79.pdf
+10.​Mosaic-IT: Cost-Free Compositional Data Synthesis for Instruction Tuning - ACL
+Anthology,
+accessed
+June
+5,
+2026,
+https://aclanthology.org/2025.findings-acl.1297.pdf
+11.​ Token-Selective Hierarchical Data Selection for Instruction Tuning - OpenReview,
+accessed
+June
+5,
+2026,
+https://openreview.net/pdf/0fa7d6b8c3c7dc3cd17ee07f44b2a8c19ddb6cff.pdf
+12.​T-Shirt: Token-Selective Hierarchical Data Selection for Instruction Tuning - arXiv,
+accessed June 5, 2026, https://arxiv.org/html/2506.01317v2
+
+13.​Dynamite321/T-SHIRT
+
+GitHub,
+accessed
+June
+5,
+2026,
+https://github.com/Dynamite321/T-SHIRT
+14.​(PDF) T-SHIRT: Token-Selective Hierarchical Data Selection for Instruction Tuning,
+accessed
+June
+5,
+2026,
+https://www.researchgate.net/publication/392336907_T-SHIRT_Token-Selective_Hi
+erarchical_Data_Selection_for_Instruction_Tuning
+15.​Survey of different Large Language Model Architectures: Trends, Benchmarks,
+and
+Challenges
+arXiv,
+accessed
+June
+5,
+2026,
+https://arxiv.org/html/2412.03220v1
+16.​Survey of Different Large Language Model Architectures: Trends, Benchmarks,
+and
+Challenges
+IEEE
+Xplore,
+accessed
+June
+5,
+2026,
+https://ieeexplore.ieee.org/iel8/6287639/10380310/10720163.pdf
+17.​Mitigating Forgetting in LLM Fine-Tuning via Low-Perplexity Token Learning |
+OpenReview, accessed June 5, 2026, https://openreview.net/forum?id=1ktdvp1EYI
+18.​Clear Minds Think Alike: What Makes LLM Fine-tuning Robust? A Study of Token
+Perplexity, accessed June 5, 2026, https://arxiv.org/html/2501.14315v1
+19.​Mitigating Forgetting in LLM via Low-Perplexity Token Learning, accessed June 5,
+2026, https://neurips.cc/media/neurips-2025/Slides/120200_7VJHJv3.pdf
+20.​Mitigating Forgetting in LLM Fine-Tuning via Low-Perplexity Token Learning arXiv, accessed June 5, 2026, https://arxiv.org/html/2501.14315v6
+21.​The Year in AI - Best of 2025, Part I: Reasoning Models, LLM Agents and More,
+accessed
+June
+5,
+2026,
+https://www.apolo.us/blog-posts/the-year-in-ai-best-of-2025-part-i-reasoningmodels-llm-agents-and-more
+22.​DiffuMask: Diffusion Language Model for Token-level Prompt Pruning - arXiv,
+accessed June 5, 2026, https://arxiv.org/html/2604.06627v1
+23.​Qwen2.5-0.5B: Specifications and GPU VRAM Requirements - ApX Machine
+Learning, accessed June 5, 2026, https://apxml.com/models/qwen2-5-0-5b
+24.​marcusmi4n/qwen2.5-0.5b-qnn-ready - Hugging Face, accessed June 5, 2026,
+https://huggingface.co/marcusmi4n/qwen2.5-0.5b-qnn-ready
+25.​Daily
+Papers
+Hugging
+Face,
+accessed
+June
+5,
+2026,
+https://huggingface.co/papers?q=supervised%20fine-tuning
+26.​SPaCe: Unlocking Sample-Efficient Large Language Models Training With
+Self-Pace Curriculum Learning - arXiv, accessed June 5, 2026,
+https://arxiv.org/html/2508.05015v2
+27.​Qwen-2.5 Family Transformer Models - Emergent Mind, accessed June 5, 2026,
+https://www.emergentmind.com/topics/qwen-2-5-family
+28.​Why Tiny Models Beat Giants on Verification Tasks: A 0.5B Fine-Tuning Case Study
+|
+by
+Ashish
+Panday
+|
+Medium,
+accessed
+June
+5,
+2026,
+https://medium.com/@ashishpanday9818/the-0-5b-parameter-revolution-teachi
+ng-tiny-models-to-correct-their-own-hallucinations-1b6b7042d485
+29.​Maximizing Capacity Utilization of LoRA Adapters for Mitigating the
+Learning-Forgetting Trade-off - OpenReview, accessed June 5, 2026,
+https://openreview.net/pdf/49d8b7a324f12e6ce0c14ba26d96b6d84b58314f.pdf
+30.​Appendices
+CVF
+Open
+Access,
+accessed
+June
+5,
+2026,
+
+https://openaccess.thecvf.com/content/CVPR2026/supplemental/Borse_Ar2Can_
+An_Architect_CVPR_2026_supplemental.pdf
+31.​T-SHIRT: Token-Selective Hierarchical Data Selection for Instruction Tuning OpenReview,
+accessed
+June
+5,
+2026,
+https://openreview.net/forum?id=oN5YVZ9JeF
+32.​Instruction-Following Pruning for Large Language Models - arXiv, accessed June
+5, 2026, https://arxiv.org/html/2501.02086v3
+33.​Mitigating Forgetting in LLM Fine-Tuning via Low-Perplexity Token Learning arXiv, accessed June 5, 2026, https://arxiv.org/pdf/2501.14315?
+34.​CrowdSelect: Synthetic Instruction Data Selection with Multi-LLM Wisdom - arXiv,
+accessed June 5, 2026, https://arxiv.org/html/2503.01836v1
+
+
