@@ -2,7 +2,7 @@ import os
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments, BitsAndBytesConfig
 from transformers.trainer_utils import get_last_checkpoint
-from peft import LoraConfig, prepare_model_for_kbit_training
+from peft import LoraConfig, prepare_model_for_kbit_training, get_peft_model
 from trl import SFTTrainer
 from datasets import load_dataset
 
@@ -38,11 +38,13 @@ def execute_qlora_training(dataset_path, output_dir_name):
         bias="none", task_type="CAUSAL_LM"
     )
     
-    # [FIX S.2]: Removed duplicate `get_peft_model`. Trainer handles it.
-    
+    model = get_peft_model(model, lora_config)
+
     dataset = load_dataset('json', data_files=dataset_path, split='train')
-    def format_instruction(sample):
-        return f"{sample['prompt']}\n\n{sample['target']}{tokenizer.eos_token}"
+    def format_and_tokenize(examples):
+        texts = [f"{p}\n\n{t}{tokenizer.eos_token}" for p, t in zip(examples["prompt"], examples["target"])]
+        return tokenizer(texts, truncation=True, max_length=1024)
+    dataset = dataset.map(format_and_tokenize, batched=True, remove_columns=dataset.column_names)
     
     out_dir = f"./results/{output_dir_name}"
     os.makedirs(out_dir, exist_ok=True) # [FIX R.3] Safe dir creation
@@ -58,9 +60,7 @@ def execute_qlora_training(dataset_path, output_dir_name):
     )
     
     trainer = SFTTrainer(
-        model=model, train_dataset=dataset, peft_config=lora_config,
-        tokenizer=tokenizer, args=training_args,
-        formatting_func=format_instruction
+        model=model, train_dataset=dataset, processing_class=tokenizer, args=training_args
     )
     
     # [FIX S.3]: Precise checkpoint tracking targeted to this specific model run
