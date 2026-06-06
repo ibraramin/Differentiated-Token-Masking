@@ -16,8 +16,7 @@ def calculate_bwt_perplexity(base_model_id, adapter_path=None, device="cuda"):
     model = AutoModelForCausalLM.from_pretrained(
         base_model_id, 
         torch_dtype=torch.bfloat16, 
-        device_map=device, 
-        attn_implementation="flash_attention_2"
+        device_map=device
     )
     
     # Dynamically load LoRA adapter if testing a fine-tuned model

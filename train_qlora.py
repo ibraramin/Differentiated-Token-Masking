@@ -26,7 +26,6 @@ def execute_qlora_training(dataset_path, output_dir_name):
         model_id,
         quantization_config=bnb_config,
         device_map="auto",
-        attn_implementation="flash_attention_2",
         torch_dtype=torch.bfloat16
     )
     
