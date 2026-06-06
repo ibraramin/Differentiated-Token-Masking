@@ -14,7 +14,8 @@ def execute_qlora_training(dataset_path, output_dir_name):
     special_tokens_dict = {'mask_token': '<|mask|>'}
     if tokenizer.pad_token is None: special_tokens_dict['pad_token'] = '<|pad|>'
     tokenizer.add_special_tokens(special_tokens_dict)
-        
+    tokenizer.model_max_length = 1024
+
     bnb_config = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_use_double_quant=True,
@@ -53,12 +54,12 @@ def execute_qlora_training(dataset_path, output_dir_name):
         gradient_accumulation_steps=4,
         learning_rate=2e-5, num_train_epochs=4, lr_scheduler_type="cosine",
         logging_steps=10, save_strategy="epoch", optim="paged_adamw_32bit",
-        bf16=True, max_grad_norm=1.0, warmup_ratio=0.03
+        bf16=True, max_grad_norm=1.0, warmup_steps=38
     )
     
     trainer = SFTTrainer(
         model=model, train_dataset=dataset, peft_config=lora_config,
-        max_seq_length=1024, tokenizer=tokenizer, args=training_args,
+        tokenizer=tokenizer, args=training_args,
         formatting_func=format_instruction
     )
     
