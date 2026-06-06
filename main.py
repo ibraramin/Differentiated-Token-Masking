@@ -13,10 +13,10 @@ random.seed(42)
 torch.manual_seed(42)
 
 CURATION_TASKS = [
-    ("semantic", "control",      "ctrl", None,      None,    None,   None,     None,  "Sem_Control"),
+    ("semantic", "control",      "ctrl", None,      None,    None,   None,  "Sem_Control"),
     ("semantic", "input_masked", "din",  "semantic", "Din",   "scores_sem_din.jsonl",  True,  "Sem_Input_Masked"),
     ("semantic", "output_masked","dout", "semantic", "Dout",  "scores_sem_dout.jsonl", False, "Sem_Output_Masked"),
-    ("logical",  "control",      "ctrl", None,      None,    None,   None,     None,  "Log_Control"),
+    ("logical",  "control",      "ctrl", None,      None,    None,   None,  "Log_Control"),
     ("logical",  "input_masked", "din",  "logical",  "Din",  "scores_log_din.jsonl",  True,  "Log_Input_Masked"),
     ("logical",  "output_masked","dout", "logical",  "Dout", "scores_log_dout.jsonl", False, "Log_Output_Masked"),
 ]
