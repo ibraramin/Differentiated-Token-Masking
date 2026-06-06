@@ -12,23 +12,24 @@ def calculate_bwt_perplexity(base_model_id, adapter_path=None, device="cuda"):
     Calculates pure perplexity on the raw Wikitext-2 holdout set.
     Uses native Transformers (FA2) for mathematically exact CrossEntropy loss.
     """
-    tokenizer = AutoTokenizer.from_pretrained(base_model_id)
+    tokenizer = AutoTokenizer.from_pretrained(
+        adapter_path if adapter_path else base_model_id
+    )
     
-    # Load base model
     model = AutoModelForCausalLM.from_pretrained(
         base_model_id, 
         torch_dtype=torch.bfloat16, 
         device_map=device
     )
     
-    # Dynamically load LoRA adapter if testing a fine-tuned model
     if adapter_path and adapter_path != base_model_id:
         from peft import PeftModel
+        model.resize_token_embeddings(len(tokenizer))
         model = PeftModel.from_pretrained(model, adapter_path)
         
     model.eval()
     
-    wiki_raw = load_dataset("wikitext", "wikitext-2-raw-v1", split="test")
+    wiki_raw = load_dataset("Salesforce/wikitext", "wikitext-2-raw-v1", split="test")
     clean_text = [row['text'] for row in wiki_raw if len(row['text'].strip()) > 50][:1000]
     
     total_nll, total_tokens = 0.0, 0
@@ -56,16 +57,17 @@ def merge_lora_adapter(base_model_id, adapter_path, output_path):
 
     from peft import PeftModel
 
+    tokenizer = AutoTokenizer.from_pretrained(adapter_path)
+
     model = AutoModelForCausalLM.from_pretrained(
         base_model_id, torch_dtype=torch.bfloat16
     )
+    model.resize_token_embeddings(len(tokenizer))
     model = PeftModel.from_pretrained(model, adapter_path)
     merged = model.merge_and_unload()
 
     os.makedirs(output_path, exist_ok=True)
     merged.save_pretrained(output_path, safe_serialization=True)
-
-    tokenizer = AutoTokenizer.from_pretrained(adapter_path)
     tokenizer.save_pretrained(output_path)
 
     del model, merged
