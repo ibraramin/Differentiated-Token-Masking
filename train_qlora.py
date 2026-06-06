@@ -29,6 +29,7 @@ def execute_qlora_training(dataset_path, output_dir_name):
     )
 
     model = get_peft_model(model, lora_config)
+    model.gradient_checkpointing_enable()
 
     dataset = load_dataset('json', data_files=dataset_path, split='train')
     def format_and_tokenize(examples):
@@ -41,8 +42,8 @@ def execute_qlora_training(dataset_path, output_dir_name):
 
     training_args = TrainingArguments(
         output_dir=out_dir,
-        per_device_train_batch_size=4,
-        gradient_accumulation_steps=4,
+        per_device_train_batch_size=2,
+        gradient_accumulation_steps=8,
         learning_rate=2e-5, num_train_epochs=4, lr_scheduler_type="cosine",
         logging_steps=10, save_strategy="epoch", optim="paged_adamw_32bit",
         fp16=True, max_grad_norm=1.0, warmup_steps=38
