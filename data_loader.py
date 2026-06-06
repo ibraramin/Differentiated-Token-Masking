@@ -1,23 +1,24 @@
 from datasets import load_dataset
 
-def load_curation_datasets(sample_limit=20000):
-    """
-    Loads and standardizes the base datasets into pure instruction/target pairs.
-    """
-    print("Loading Semantic Track (Alpaca-Cleaned)...")
-    semantic_raw = load_dataset("yahma/alpaca-cleaned", split="train")
-    semantic_data = []
-    
-    for row in semantic_raw.select(range(min(sample_limit, len(semantic_raw)))):
-        prompt = f"{row['instruction']}\n\nInput:\n{row['input']}" if row.get("input") else row['instruction']
-        semantic_data.append({"prompt": prompt, "target": row["output"]})
+def load_curation_datasets(sample_limit=20000, tracks=None):
+    if tracks is None:
+        tracks = ["semantic", "logical"]
 
-    print("Loading Logical Track (GSM8K)...")
-    logical_raw = load_dataset("gsm8k", "main", split="train")
+    semantic_data = []
     logical_data = []
-    
-    for row in logical_raw.select(range(min(sample_limit, len(logical_raw)))):
-        logical_data.append({"prompt": row["question"], "target": row["answer"]})
+
+    if "semantic" in tracks:
+        print("Loading Semantic Track (Alpaca-Cleaned)...")
+        semantic_raw = load_dataset("yahma/alpaca-cleaned", split="train")
+        for row in semantic_raw.select(range(min(sample_limit, len(semantic_raw)))):
+            prompt = f"{row['instruction']}\n\nInput:\n{row['input']}" if row.get("input") else row['instruction']
+            semantic_data.append({"prompt": prompt, "target": row["output"]})
+
+    if "logical" in tracks:
+        print("Loading Logical Track (GSM8K)...")
+        logical_raw = load_dataset("openai/gsm8k", "main", split="train")
+        for row in logical_raw.select(range(min(sample_limit, len(logical_raw)))):
+            logical_data.append({"prompt": row["question"], "target": row["answer"]})
 
     return semantic_data, logical_data
 

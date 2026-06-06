@@ -96,7 +96,11 @@ def main():
         if needs_model:
             model, tokenizer, nlp = setup_curation_env()
 
-        semantic_data, logical_data = load_curation_datasets(20000)
+        active_tracks = set()
+        for t, s, *_ in CURATION_TASKS:
+            if _active(args, t, s):
+                active_tracks.add(t)
+        semantic_data, logical_data = load_curation_datasets(20000, tracks=list(active_tracks))
         data_bank = {"semantic": semantic_data, "logical": logical_data}
         score_cache = {}
 
