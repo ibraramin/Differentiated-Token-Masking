@@ -2,7 +2,6 @@ import os
 import torch
 import math
 import json
-import gc
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 import lm_eval
@@ -48,36 +47,6 @@ def calculate_bwt_perplexity(base_model_id, adapter_path=None, device="cuda"):
             
     return math.exp(total_nll / total_tokens)
 
-def merge_lora_adapter(base_model_id, adapter_path, output_path):
-    """Merge LoRA weights into base model, save as standalone model for vLLM compat."""
-    if os.path.exists(output_path) and os.path.isdir(output_path):
-        model_files = [f for f in os.listdir(output_path) if f.endswith('.safetensors') or f.endswith('.json')]
-        if model_files:
-            return output_path
-
-    from peft import PeftModel
-
-    tokenizer = AutoTokenizer.from_pretrained(adapter_path)
-
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model_id, torch_dtype=torch.bfloat16
-    )
-    model.resize_token_embeddings(len(tokenizer))
-    model = PeftModel.from_pretrained(model, adapter_path)
-    merged = model.merge_and_unload()
-
-    os.makedirs(output_path, exist_ok=True)
-    merged.save_pretrained(output_path, safe_serialization=True)
-    tokenizer.save_pretrained(output_path)
-
-    del model, merged
-    gc.collect()
-    torch.cuda.empty_cache()
-
-    print(f"Merged {adapter_path} -> {output_path}")
-    return output_path
-
-
 def execute_evaluation_matrix(models_to_eval=None):
     """
     Runs the zero-shot benchmarks (via vLLM) and absolute BWT differential analysis.
@@ -106,21 +75,19 @@ def execute_evaluation_matrix(models_to_eval=None):
     
     master_results = {"Baseline_PPL": baseline_ppl}
     
-    merged_dir = "./merged_models"
-    os.makedirs(merged_dir, exist_ok=True)
-    
     for model_name, (adapter_path, track) in models_to_eval.items():
         print(f"\n{'='*50}\nEvaluating: {model_name}\n{'='*50}")
         
         tasks = ["arc_challenge", "hellaswag", "mmlu"] if track == "semantic" else ["gsm8k", "minerva_math"]
         
-        merged_path = merge_lora_adapter(base_model_id, adapter_path, f"{merged_dir}/{model_name}")
-        vllm_args = f"pretrained={merged_path},dtype=bfloat16,gpu_memory_utilization=0.7"
+        hf_args = f"pretrained={base_model_id},dtype=bfloat16"
+        if adapter_path != base_model_id:
+            hf_args += f",peft={adapter_path}"
             
-        print(f"Booting vLLM engine for tasks: {tasks}...")
+        print(f"Evaluating via HF engine for tasks: {tasks}...")
         task_results = lm_eval.simple_evaluate(
-            model="vllm",
-            model_args=vllm_args,
+            model="hf",
+            model_args=hf_args,
             tasks=tasks,
             num_fewshot=0,
             batch_size="auto"

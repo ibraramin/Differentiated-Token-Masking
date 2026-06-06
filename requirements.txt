@@ -1,24 +1,17 @@
-# Core PyTorch & Hardware Optimization
+# Core PyTorch (pinned via install_deps.sh to cu118)
 torch>=2.1.2
-accelerate>=0.28.0
+torchvision
+torchaudio
 
 # Hugging Face Ecosystem
 transformers>=4.40.0
 datasets>=2.18.0
 peft>=0.10.0
 trl>=0.8.1
-bitsandbytes>=0.43.0
+accelerate>=0.28.0
 
-# Mathematical & Data Processing
-pandas>=2.2.0
-scipy>=1.12.0
-
-# NLP & Token Masking Heuristics
+# NLP
 spacy>=3.7.4
 
-# Benchmarking & Evaluation
-vllm>=0.4.0
+# Evaluation
 lm_eval[api]>=0.4.2
-
-# Utilities
-tqdm>=4.66.2
