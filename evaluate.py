@@ -112,7 +112,7 @@ def execute_evaluation_matrix(models_to_eval=None):
     for model_name, (adapter_path, track) in models_to_eval.items():
         print(f"\n{'='*50}\nEvaluating: {model_name}\n{'='*50}")
         
-        tasks = ["arc_challenge", "hellaswag", "mmlu"] if track == "semantic" else ["gsm8k", "math"]
+        tasks = ["arc_challenge", "hellaswag", "mmlu"] if track == "semantic" else ["gsm8k", "minerva_math"]
         
         merged_path = merge_lora_adapter(base_model_id, adapter_path, f"{merged_dir}/{model_name}")
         vllm_args = f"pretrained={merged_path},dtype=bfloat16,gpu_memory_utilization=0.7"
